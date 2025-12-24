@@ -1,0 +1,56 @@
+{
+  "name": "dropi-mcp",
+  "version": "1.0.0",
+  "description": "MCP Server for Dropi.co - Connect Claude, ChatGPT, and other AI assistants to Dropi dropshipping platform",
+  "main": "dist/index.js",
+  "bin": {
+    "dropi-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "mcp",
+    "dropi",
+    "dropshipping",
+    "claude",
+    "anthropic",
+    "chatgpt",
+    "openai",
+    "ai",
+    "ecommerce",
+    "cod",
+    "fulfillment",
+    "colombia",
+    "mexico",
+    "model-context-protocol"
+  ],
+  "author": "Trucos Ecomm & Drop <trucosecomydrop@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AndresestradaR/dropi-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AndresestradaR/dropi-mcp/issues"
+  },
+  "homepage": "https://github.com/AndresestradaR/dropi-mcp#readme",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ]
+}
