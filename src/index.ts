@@ -18,6 +18,16 @@ const BASE_URLS: Record<string, string> = {
 
 interface DropiConfig { email: string; password: string; baseUrl: string; token?: string; wallet?: any; }
 
+// Función para obtener IP pública (fallback a IP local)
+async function getPublicIP(): Promise<string> {
+  try {
+    const response = await axios.get("https://api.ipify.org?format=json", { timeout: 3000 });
+    return response.data.ip;
+  } catch {
+    return "127.0.0.1";
+  }
+}
+
 class DropiClient {
   private config: DropiConfig;
   private client: AxiosInstance;
@@ -34,9 +44,17 @@ class DropiClient {
       headers: { 
         "Content-Type": "application/json",
         "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
         "Origin": this.config.baseUrl.replace("api.", "app."),
         "Referer": this.config.baseUrl.replace("api.", "app.") + "/",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-site"
       } 
     });
   }
@@ -63,6 +81,9 @@ class DropiClient {
         };
       }
 
+      // Obtener IP pública para el payload
+      const ipAddress = await getPublicIP();
+
       // Determinar si white_brand_id es número o string (hash)
       const whiteBrandId = /^\d+$/.test(WHITE_BRAND_ID) ? parseInt(WHITE_BRAND_ID) : WHITE_BRAND_ID;
       
@@ -72,7 +93,8 @@ class DropiClient {
         white_brand_id: whiteBrandId,
         brand: "",
         otp: null,
-        with_cdc: false
+        with_cdc: false,
+        ipAddress: ipAddress
       };
       
       const response = await this.client.post("/api/login", payload);
@@ -95,7 +117,8 @@ class DropiClient {
         debug: {
           email_received: emailReceived,
           white_brand_id: WHITE_BRAND_ID,
-          base_url: this.config.baseUrl
+          base_url: this.config.baseUrl,
+          ip_used: ipAddress
         }
       };
     } catch (error: any) { 
@@ -107,7 +130,8 @@ class DropiClient {
           password_received: this.config.password ? "***configurado***" : "(vacío)",
           white_brand_id: WHITE_BRAND_ID,
           base_url: this.config.baseUrl,
-          error_detail: error.response?.status || "network error"
+          error_detail: error.response?.status || "network error",
+          error_data: error.response?.data || null
         }
       }; 
     }
@@ -262,7 +286,7 @@ const TOOLS: Tool[] = [
 ];
 
 const dropiClient = new DropiClient();
-const server = new Server({ name: "dropi-mcp", version: "1.0.2" }, { capabilities: { tools: {} } });
+const server = new Server({ name: "dropi-mcp", version: "1.0.3" }, { capabilities: { tools: {} } });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
