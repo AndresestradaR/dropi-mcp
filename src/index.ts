@@ -5,7 +5,16 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema, Tool } from "@modelcontextprotocol/sdk/types.js";
 import axios, { AxiosInstance } from "axios";
 
-const WHITE_BRAND_ID = "df3e6b0bb66ceaadca4f84cbc371fd66e04d20fe51fc414da8d1b84d31d178de";
+// WHITE_BRAND_ID configurable: "1" para Colombia, hash para Guatemala
+const WHITE_BRAND_ID = process.env.DROPI_WHITE_BRAND_ID || "1";
+
+// Detectar país por URL o variable de entorno
+const DROPI_COUNTRY = process.env.DROPI_COUNTRY || "co";
+const BASE_URLS: Record<string, string> = {
+  co: "https://api.dropi.co",
+  gt: "https://api.dropi.gt",
+  mx: "https://api.dropi.mx"
+};
 
 interface DropiConfig { email: string; password: string; baseUrl: string; token?: string; wallet?: any; }
 
@@ -14,23 +23,58 @@ class DropiClient {
   private client: AxiosInstance;
 
   constructor() {
-    this.config = { email: process.env.DROPI_EMAIL || "", password: process.env.DROPI_PASSWORD || "", baseUrl: process.env.DROPI_API_URL || "https://api.dropi.co" };
-    this.client = axios.create({ baseURL: this.config.baseUrl, headers: { "Content-Type": "application/json" } });
+    const baseUrl = process.env.DROPI_API_URL || BASE_URLS[DROPI_COUNTRY] || BASE_URLS.co;
+    this.config = { 
+      email: process.env.DROPI_EMAIL || "", 
+      password: process.env.DROPI_PASSWORD || "", 
+      baseUrl 
+    };
+    this.client = axios.create({ 
+      baseURL: this.config.baseUrl, 
+      headers: { 
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/plain, */*",
+        "Origin": this.config.baseUrl.replace("api.", "app."),
+        "Referer": this.config.baseUrl.replace("api.", "app.") + "/",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      } 
+    });
   }
 
   private async ensureAuthenticated(): Promise<void> { if (!this.config.token) await this.login(); }
 
   async login(): Promise<any> {
     try {
-      const response = await this.client.post("/api/login", { email: this.config.email, password: this.config.password, white_brand_id: WHITE_BRAND_ID });
+      // Determinar si white_brand_id es número o string (hash)
+      const whiteBrandId = /^\d+$/.test(WHITE_BRAND_ID) ? parseInt(WHITE_BRAND_ID) : WHITE_BRAND_ID;
+      
+      const payload = { 
+        email: this.config.email, 
+        password: this.config.password, 
+        white_brand_id: whiteBrandId,
+        brand: "",
+        otp: null,
+        with_cdc: false
+      };
+      
+      const response = await this.client.post("/api/login", payload);
+      
       if (response.data.isSuccess) {
         this.config.token = response.data.token;
         this.config.wallet = response.data.wallets?.[0] || response.data.wallet;
         this.client.defaults.headers.common["Authorization"] = `Bearer ${this.config.token}`;
-        return { success: true, message: "Login exitoso", wallet_balance: this.config.wallet?.amount || 0, user: response.data.user?.name || response.data.objects?.name };
+        return { 
+          success: true, 
+          message: "Login exitoso", 
+          wallet_balance: this.config.wallet?.amount || 0, 
+          currency: this.config.wallet?.currency || "COP",
+          user: response.data.user?.name || response.data.objects?.name 
+        };
       }
       return { success: false, message: response.data.message || "Error en login" };
-    } catch (error: any) { return { success: false, message: error.response?.data?.message || error.message }; }
+    } catch (error: any) { 
+      return { success: false, message: error.response?.data?.message || error.message }; 
+    }
   }
 
   async getDepartments(): Promise<any> {
@@ -48,14 +92,31 @@ class DropiClient {
   async createOrder(orderData: any): Promise<any> {
     await this.ensureAuthenticated();
     try {
-      const payload = { calculate_costs_and_shiping: true, state: orderData.state, city: orderData.city, name: orderData.name, surname: orderData.surname, dir: orderData.address, phone: orderData.phone, client_email: orderData.email || "", notes: orderData.notes || "", payment_method_id: 1, rate_type: orderData.rate_type || "CON RECAUDO", type: "FINAL_ORDER", total_order: orderData.total_order, products: orderData.products, ...(orderData.dni && { dni: orderData.dni }), ...(orderData.distribution_company_id && { distributionCompany: { id: orderData.distribution_company_id } }) };
+      const payload = { 
+        calculate_costs_and_shiping: true, 
+        state: orderData.state, 
+        city: orderData.city, 
+        name: orderData.name, 
+        surname: orderData.surname, 
+        dir: orderData.address, 
+        phone: orderData.phone, 
+        client_email: orderData.email || "", 
+        notes: orderData.notes || "", 
+        payment_method_id: 1, 
+        rate_type: orderData.rate_type || "CON RECAUDO", 
+        type: "FINAL_ORDER", 
+        total_order: orderData.total_order, 
+        products: orderData.products, 
+        ...(orderData.dni && { dni: orderData.dni }), 
+        ...(orderData.distribution_company_id && { distributionCompany: { id: orderData.distribution_company_id } }) 
+      };
       return (await this.client.post("/api/orders/myorders", payload)).data;
     } catch (error: any) { return { success: false, message: error.response?.data?.message || error.message }; }
   }
 
   async getOrder(orderId: number): Promise<any> {
     await this.ensureAuthenticated();
-    try { return (await this.client.get(`/api/orders/myorders/${orderId}`)).data; }
+    try { return (await this.client.get(`/api/orders/myorders/${orderId}?warranty=false`)).data; }
     catch (error: any) { return { success: false, message: error.response?.data?.message || error.message }; }
   }
 
@@ -111,7 +172,14 @@ class DropiClient {
     } catch (error: any) { return { success: false, message: error.response?.data?.message || error.message }; }
   }
 
-  async getWalletBalance(): Promise<any> { await this.ensureAuthenticated(); return { success: true, balance: this.config.wallet?.amount || 0, currency: "COP" }; }
+  async getWalletBalance(): Promise<any> { 
+    await this.ensureAuthenticated(); 
+    return { 
+      success: true, 
+      balance: this.config.wallet?.amount || 0, 
+      currency: this.config.wallet?.currency || "COP" 
+    }; 
+  }
 
   async getTransportCompanies(): Promise<any> {
     await this.ensureAuthenticated();
@@ -158,7 +226,7 @@ const TOOLS: Tool[] = [
 ];
 
 const dropiClient = new DropiClient();
-const server = new Server({ name: "dropi-mcp", version: "1.0.0" }, { capabilities: { tools: {} } });
+const server = new Server({ name: "dropi-mcp", version: "1.0.1" }, { capabilities: { tools: {} } });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
