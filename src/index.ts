@@ -45,6 +45,24 @@ class DropiClient {
 
   async login(): Promise<any> {
     try {
+      // Debug: verificar que las credenciales llegaron
+      const emailReceived = this.config.email || "(vacío)";
+      const passwordReceived = this.config.password ? `${this.config.password.substring(0, 3)}***` : "(vacío)";
+      
+      if (!this.config.email || !this.config.password) {
+        return { 
+          success: false, 
+          message: "Credenciales no configuradas",
+          debug: {
+            email_received: emailReceived,
+            password_received: passwordReceived,
+            white_brand_id: WHITE_BRAND_ID,
+            base_url: this.config.baseUrl,
+            hint: "Verifica que DROPI_EMAIL y DROPI_PASSWORD estén en las variables de entorno del MCP"
+          }
+        };
+      }
+
       // Determinar si white_brand_id es número o string (hash)
       const whiteBrandId = /^\d+$/.test(WHITE_BRAND_ID) ? parseInt(WHITE_BRAND_ID) : WHITE_BRAND_ID;
       
@@ -71,9 +89,27 @@ class DropiClient {
           user: response.data.user?.name || response.data.objects?.name 
         };
       }
-      return { success: false, message: response.data.message || "Error en login" };
+      return { 
+        success: false, 
+        message: response.data.message || "Error en login",
+        debug: {
+          email_received: emailReceived,
+          white_brand_id: WHITE_BRAND_ID,
+          base_url: this.config.baseUrl
+        }
+      };
     } catch (error: any) { 
-      return { success: false, message: error.response?.data?.message || error.message }; 
+      return { 
+        success: false, 
+        message: error.response?.data?.message || error.message,
+        debug: {
+          email_received: this.config.email || "(vacío)",
+          password_received: this.config.password ? "***configurado***" : "(vacío)",
+          white_brand_id: WHITE_BRAND_ID,
+          base_url: this.config.baseUrl,
+          error_detail: error.response?.status || "network error"
+        }
+      }; 
     }
   }
 
@@ -226,7 +262,7 @@ const TOOLS: Tool[] = [
 ];
 
 const dropiClient = new DropiClient();
-const server = new Server({ name: "dropi-mcp", version: "1.0.1" }, { capabilities: { tools: {} } });
+const server = new Server({ name: "dropi-mcp", version: "1.0.2" }, { capabilities: { tools: {} } });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
