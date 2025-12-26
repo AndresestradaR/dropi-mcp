@@ -1,6 +1,6 @@
 {
   "name": "dropi-mcp",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "MCP Server for Dropi.co - Connect Claude, ChatGPT, and other AI assistants to Dropi dropshipping platform",
   "main": "dist/index.js",
   "bin": {
